@@ -9,6 +9,7 @@ import numpy as np
 from config import cfg as default_cfg
 from datasets.sampler import PKMSampler, StratifiedPKMViewSampler
 from datasets.whu_mars import WHU_MARS
+from loss import make_loss
 
 
 CANDIDATES = (
@@ -153,6 +154,8 @@ def main():
         subdir=first.DATASETS.SUBDIR)
     for path, config in zip(CANDIDATES, configs):
         audit_batch(os.path.basename(path), config, dataset)
+        make_loss(config, num_classes=dataset.num_train_pids)
+        print('{}: LOSS_CONSTRUCTION_OK'.format(os.path.basename(path)))
     print('CANDIDATE_AUDIT_OK')
 
 

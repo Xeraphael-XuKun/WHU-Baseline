@@ -9,7 +9,7 @@ PYTHON=/mnt/cache/wanghanzhi/envs/whu_mars/bin/python3
 CONFIG=/mnt/cache/wanghanzhi/XK/WHU-Baseline/configs/C_fused_baseline_candidate.yml
 DATA_ROOT=/mnt/cache/wanghanzhi/Datasets
 PRETRAIN=/mnt/cache/wanghanzhi/Datasets/ViT-B-16.pt
-OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/C_fused_baseline_candidate
+OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/C_fused_baseline_candidate_retry1
 
 cd "$CODE_DIR"
 if [ -d "$OUTPUT" ] && [ -n "$(find "$OUTPUT" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
