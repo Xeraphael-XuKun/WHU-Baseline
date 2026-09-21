@@ -1,10 +1,9 @@
 # WHU-Baseline
 
-这是从老师当前有效 HiHR/TransReID 快照派生的 WHU-MARS baseline 项目。
+这是快照派生的 WHU-MARS baseline 项目。
 
 ## 来源与边界
 
-- 原始证据目录：`E:\CVPR2027\ref\HiHR`，保持不修改。
 - 原始源码导入提交：`78f80a2`，tag：`teacher-snapshot`。
 - 老师历史结果仍只以原目录中的日志和 checkpoint 为证据；训练产物没有复制进本仓库。
 - 当前没有清理老师快照中的非 baseline 模块。候选配置通过显式开关关闭这些模块。
