@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 
 from .bases import ImageDataset, ImageDatasetTest
 from timm.data.random_erasing import RandomErasing
-from .sampler import PKMSampler
+from .sampler import PKMSampler, StratifiedPKMViewSampler
 from .whu_mars import WHU_MARS
 from .cargo import CARGO
 from .sampler_ddp import PKMSampler_DDP
@@ -62,14 +62,19 @@ def make_dataloader(cfg):
     cam_num = dataset.num_train_cams
     view_num = dataset.num_train_vids
 
-    if cfg.DATALOADER.SAMPLER.upper() != 'PKM':
+    sampler_name = cfg.DATALOADER.SAMPLER.upper()
+    if sampler_name not in ('PKM', 'PKM_VIEW'):
         raise ValueError(
-            "Only PKM sampler is supported, but got {}".format(cfg.DATALOADER.SAMPLER)
+            "Supported samplers are PKM and PKM_VIEW, but got {}"
+            .format(cfg.DATALOADER.SAMPLER)
         )
 
     if cfg.MODEL.DIST_TRAIN:
         print('DIST_TRAIN START')
         mini_batch_size = cfg.SOLVER.IMS_PER_BATCH // dist.get_world_size()
+        if sampler_name != 'PKM':
+            raise NotImplementedError(
+                'PKM_VIEW is single-process only; use WORLD_SIZE=1')
         if cfg.DATALOADER.SYNC_FRAMES:
             raise NotImplementedError(
                 'DATALOADER.SYNC_FRAMES is not implemented for the DDP sampler; '
@@ -89,19 +94,44 @@ def make_dataloader(cfg):
             pin_memory=True,
         )
     else:
-        train_loader = DataLoader(
-            train_set,
-            batch_size=cfg.SOLVER.IMS_PER_BATCH,
-            sampler=PKMSampler(
+        if sampler_name == 'PKM':
+            data_sampler = PKMSampler(
                 dataset.train,
                 cfg.SOLVER.IMS_PER_BATCH,
                 cfg.DATALOADER.NUM_INSTANCE,
                 modalities=modalities,
                 sync_frames=cfg.DATALOADER.SYNC_FRAMES,
-            ),
+            )
+        else:
+            if cfg.DATALOADER.SYNC_FRAMES:
+                raise ValueError(
+                    'PKM_VIEW and SYNC_FRAMES are separate sampling designs; '
+                    'candidate baselines require SYNC_FRAMES=False')
+            data_sampler = StratifiedPKMViewSampler(
+                dataset.train,
+                cfg.SOLVER.IMS_PER_BATCH,
+                cfg.DATALOADER.NUM_INSTANCE,
+                modalities=modalities,
+                num_cross_view_pids=cfg.DATALOADER.PKM_VIEW.NUM_CROSS_VIEW_PIDS,
+                num_ground_only_pids=cfg.DATALOADER.PKM_VIEW.NUM_GROUND_ONLY_PIDS,
+                aerial_cam_ids=cfg.DATALOADER.PKM_VIEW.AERIAL_CAM_IDS,
+                seed=cfg.SOLVER.SEED,
+            )
+        train_loader = DataLoader(
+            train_set,
+            batch_size=cfg.SOLVER.IMS_PER_BATCH,
+            sampler=data_sampler,
             num_workers=num_workers,
             collate_fn=train_collate_fn,
         )
+
+    print(
+        'Training batch contract: sampler={}, logical_batch={}, modalities={}, '
+        'actual_image_batch={}, K={}, unique_PIDs={}'.format(
+            sampler_name, cfg.SOLVER.IMS_PER_BATCH, len(modalities),
+            cfg.SOLVER.IMS_PER_BATCH * len(modalities),
+            cfg.DATALOADER.NUM_INSTANCE,
+            cfg.SOLVER.IMS_PER_BATCH // cfg.DATALOADER.NUM_INSTANCE))
 
     val_loaders = []
     num_querys = []

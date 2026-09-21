@@ -228,3 +228,137 @@ class PKMSampler(Sampler):
 
     def __len__(self):
         return self.length
+
+
+class StratifiedPKMViewSampler(Sampler):
+    """WHU-MARS identity x modality sampler with conditional view balance.
+
+    A logical sample is a tuple containing one index per modality. A batch with
+    ``P`` identities and ``K`` logical samples per identity therefore forwards
+    ``P * K * M`` images. Cross-view identities contribute ``K/2`` Ground and
+    ``K/2`` Aerial images per modality; Ground-only identities contribute ``K``
+    Ground images per modality.
+
+    The sampler is intentionally single-process. The formal candidate runs use
+    one A800 and ``WORLD_SIZE=1``.
+    """
+
+    def __init__(self, data_source, batch_size, num_instances, modalities,
+                 num_cross_view_pids=8, num_ground_only_pids=8,
+                 aerial_cam_ids=(5, 6), seed=1234):
+        self.data_source = data_source
+        self.batch_size = int(batch_size)
+        self.num_instances = int(num_instances)
+        self.modality_ls = list(modalities)
+        self.num_cross_view_pids = int(num_cross_view_pids)
+        self.num_ground_only_pids = int(num_ground_only_pids)
+        self.aerial_cam_ids = {int(camid) for camid in aerial_cam_ids}
+        self.rng = random.Random(int(seed))
+
+        if self.num_instances <= 0 or self.num_instances % 2 != 0:
+            raise ValueError('StratifiedPKMViewSampler requires an even K, got {}'
+                             .format(self.num_instances))
+        expected = ((self.num_cross_view_pids + self.num_ground_only_pids)
+                    * self.num_instances)
+        if self.batch_size != expected:
+            raise ValueError(
+                'Stratified PKM logical batch must be (P_AG + P_G) * K = {}, got {}'
+                .format(expected, self.batch_size))
+
+        self.pid_mod_view = defaultdict(
+            lambda: defaultdict(lambda: {'Ground': [], 'Aerial': []}))
+        all_pids = set()
+        for modality in self.modality_ls:
+            for index, (_, pid, camid, _) in enumerate(self.data_source[modality]):
+                view = 'Aerial' if int(camid) in self.aerial_cam_ids else 'Ground'
+                self.pid_mod_view[pid][modality][view].append(index)
+                all_pids.add(pid)
+
+        self.cross_view_pids = []
+        self.ground_only_pids = []
+        for pid in sorted(all_pids):
+            by_modality = self.pid_mod_view[pid]
+            has_ground = all(by_modality[m]['Ground'] for m in self.modality_ls)
+            has_aerial = all(by_modality[m]['Aerial'] for m in self.modality_ls)
+            any_aerial = any(by_modality[m]['Aerial'] for m in self.modality_ls)
+            if has_ground and has_aerial:
+                self.cross_view_pids.append(pid)
+            elif has_ground and not any_aerial:
+                self.ground_only_pids.append(pid)
+
+        if len(self.cross_view_pids) < self.num_cross_view_pids:
+            raise ValueError('Need {} cross-view PIDs, found {}'
+                             .format(self.num_cross_view_pids,
+                                     len(self.cross_view_pids)))
+        if len(self.ground_only_pids) < self.num_ground_only_pids:
+            raise ValueError('Need {} Ground-only PIDs, found {}'
+                             .format(self.num_ground_only_pids,
+                                     len(self.ground_only_pids)))
+
+        # Match the teacher PKM epoch exposure before rounding to a whole batch.
+        source_length = 0
+        for pid in sorted(all_pids):
+            max_count = max(
+                max(len(self.pid_mod_view[pid][m]['Ground'])
+                    + len(self.pid_mod_view[pid][m]['Aerial']),
+                    self.num_instances)
+                for m in self.modality_ls
+            )
+            source_length += max_count - max_count % self.num_instances
+        self.source_length = source_length
+        self.num_batches = ((self.source_length + self.batch_size - 1)
+                            // self.batch_size)
+        if self.num_batches == 0:
+            raise ValueError('Stratified PKM produced no complete batches')
+        # Keep every emitted batch faithful to the requested P_AG/P_G/K
+        # contract.  Rounding up changes exposure by at most one logical batch
+        # while preserving the same scheduler denominator as ceil(source/batch).
+        self.length = self.num_batches * self.batch_size
+
+        print(
+            'Stratified PKM sampler: {} cross-view PIDs, {} Ground-only PIDs; '
+            'P_AG={}, P_G={}, K={}, logical batch={}, actual image batch={}, '
+            '{} batches/epoch'.format(
+                len(self.cross_view_pids), len(self.ground_only_pids),
+                self.num_cross_view_pids, self.num_ground_only_pids,
+                self.num_instances, self.batch_size,
+                self.batch_size * len(self.modality_ls), self.num_batches))
+
+    def _sample(self, indices, count):
+        if len(indices) >= count:
+            return self.rng.sample(indices, count)
+        return self.rng.choices(indices, k=count)
+
+    def _pid_samples(self, pid, cross_view):
+        per_modality = []
+        half = self.num_instances // 2
+        for modality in self.modality_ls:
+            pools = self.pid_mod_view[pid][modality]
+            if cross_view:
+                indices = (self._sample(pools['Ground'], half)
+                           + self._sample(pools['Aerial'], half))
+            else:
+                indices = self._sample(pools['Ground'], self.num_instances)
+            self.rng.shuffle(indices)
+            per_modality.append(indices)
+        return list(zip(*per_modality))
+
+    def __iter__(self):
+        final_indices = []
+        for _ in range(self.num_batches):
+            cross_pids = self.rng.sample(
+                self.cross_view_pids, self.num_cross_view_pids)
+            ground_pids = self.rng.sample(
+                self.ground_only_pids, self.num_ground_only_pids)
+
+            logical_batch = []
+            for pid in cross_pids:
+                logical_batch.extend(self._pid_samples(pid, cross_view=True))
+            for pid in ground_pids:
+                logical_batch.extend(self._pid_samples(pid, cross_view=False))
+            self.rng.shuffle(logical_batch)
+            final_indices.extend(logical_batch)
+        return iter(final_indices)
+
+    def __len__(self):
+        return self.length

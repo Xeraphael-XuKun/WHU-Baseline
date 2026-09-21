@@ -867,8 +867,10 @@ def do_train(cfg,
                 )
         else:
             logger.info(
-                'Epoch {} done. Time per batch: {:.3f}[s] Speed: {:.1f}[samples/s]'.format(
-                    epoch, time_per_batch, train_loader.batch_size / time_per_batch
+                'Epoch {} done. Optimizer updates: {}/{} (actual/scheduler '
+                'denominator). Time per batch: {:.3f}[s] Speed: {:.1f}[samples/s]'.format(
+                    epoch, n_iter + 1, len(train_loader), time_per_batch,
+                    train_loader.batch_size / time_per_batch
                 )
             )
 

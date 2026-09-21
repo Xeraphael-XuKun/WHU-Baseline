@@ -484,6 +484,14 @@ _C.DATALOADER.TIE_AUGMENTATION = False
 _C.DATALOADER.TIE_ERASING = True
 # Number of instance for one batch
 _C.DATALOADER.NUM_INSTANCE = 16
+# WHU-MARS view-stratified PKM sampler. These options are ignored by the
+# original PKM path, so A_baseline_candidate keeps the teacher snapshot's
+# sampler behavior unchanged.
+_C.DATALOADER.PKM_VIEW = CN()
+_C.DATALOADER.PKM_VIEW.NUM_CROSS_VIEW_PIDS = 8
+_C.DATALOADER.PKM_VIEW.NUM_GROUND_ONLY_PIDS = 8
+# Camera ids are zero-based after dataset parsing: c6/c7 -> 5/6.
+_C.DATALOADER.PKM_VIEW.AERIAL_CAM_IDS = [5, 6]
 
 # ---------------------------------------------------------------------------- #
 # Solver
