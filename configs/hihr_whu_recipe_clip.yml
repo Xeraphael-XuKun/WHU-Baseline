@@ -1,0 +1,113 @@
+# 未拆分的 baseline，从原生 CLIP 起步 —— 2x2 里缺的那一格
+#
+#   bash run_hihr.sh whu_recipe_clip
+#
+# Derived from hihr_whu_ce_mod_g2_clip.yml by deleting MODEL.CE_SPLIT_VIEW,
+# MODEL.CE_SPLIT_MODALITY and MODEL.CE_MODALITY_GROUPS.  Equivalently it is
+# hihr_whu_recipe_hihr.yml with the initialisation swapped; both are pinned in
+# tests/test_ce_split.py so the square below is square.
+#
+# WHY THIS RUN IS THE URGENT ONE.  Dropping the CARGO leg was worth +1.75 mAP
+# (whu_ce_mod_g2 11.58 -> whu_ce_mod_g2_clip 13.33), which is larger than the
+# CE grouping's own measured effect.  Every WHU number this project has was
+# taken on the cargo-initialised backbone, so the grouping's contribution ON
+# THE BACKBONE WE NOW USE is unknown -- and that contribution is the paper's
+# claim.  Three cells of the square are filled and the fourth is not:
+#
+#                       from cargo_base      from raw CLIP
+#     unsplit CE             10.23              THIS RUN
+#     CE_MODALITY_GROUPS     11.58                13.33
+#
+# Without the missing cell the +1.35 attributed to the grouping cannot be
+# carried over, and neither can the claim that the two effects compose.
+#
+# WHAT EACH OUTCOME MEANS:
+#
+#     ~11.6        the grouping is worth ~1.75 here too -- both effects hold
+#                  and they roughly add
+#     ~13.3        the grouping is worth nothing once the backbone is not
+#                  pre-collapsed, i.e. it was repairing damage the CARGO leg
+#                  caused.  That is a real finding and a much simpler paper,
+#                  but it removes the current headline
+#     >13.33       the grouping is HARMFUL on this backbone
+#
+# The third is not idle: the mechanism the grouping was built on -- the three
+# spectrum centroids sitting at cosine 0.9999 -- was measured on the
+# cargo-initialised backbone, and the raw-CLIP run's geometry is already
+# looser (d_same 0.079 against 0.055, d_cross(RGB,Th) 1.164 against 1.253).
+# Some of the collapse the grouping exists to undo may simply not be there.
+#
+MODEL:
+  PRETRAIN_CHOICE: 'imagenet'
+  # [VARIABLE] the deliberate change: the raw OpenAI release rather than
+  # our CARGO checkpoint.  run_hihr.sh points this at $DATA/ViT-B-16.pt,
+  # the same file hihr_cargo_base.yml itself starts from.
+  PRETRAIN_PATH: 'ViT-B-16.pt'
+  # 4.2: "We adopt the CLIP-ViT-B/16 as the visual and text encoder."
+  TRANSFORMER_TYPE: 'vit_base_clip'
+  # [RECIPE] HiHR section 4.4: "cross-entropy loss and triplet loss".
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'off'
+  IF_WITH_CENTER: 'no'
+  NAME: 'transformer'
+  NO_MARGIN: True
+  DEVICE_ID: ('0')
+  STRIDE_SIZE: [16, 16]
+
+INPUT:
+  # 4.2: "images are resized to 256 x 128 x 3"
+  SIZE_TRAIN: [256, 128]
+  SIZE_TEST: [256, 128]
+  # 4.2: "random horizontal flipping, random cropping and random erasing"
+  PROB: 0.5
+  RE_PROB: 0.5
+  PADDING: 10
+  # CLIP's own normalisation -- the tower was fitted to these statistics.
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]
+
+DATASETS:
+  NAMES: ('WHU-MARS')
+  ROOT_DIR: ('/data')
+  MODALITIES: ['RGB', 'IR', 'Thermal']
+
+DATALOADER:
+  SAMPLER: 'PKM'
+  # 4.2: "with 4 images sampled per identity"
+  NUM_INSTANCE: 4
+  NUM_WORKERS: 8
+
+SOLVER:
+  # 4.2: "using Adam"
+  OPTIMIZER_NAME: 'Adam'
+  # 4.2: "We train for 60 epochs"
+  MAX_EPOCHS: 60
+  # 4.2: "3.5e-4 for randomly initialized modules and 5e-6 for pre-trained
+  #       components"  -- BASE_LR is the head, PRETRAINED_LR the CLIP tower.
+  BASE_LR: 0.00035
+  PRETRAINED_LR: 0.000005
+  BIAS_LR_FACTOR: 1
+  # 4.2: "a batch size of 64"
+  IMS_PER_BATCH: 64
+  # 4.2: "A warm-up strategy with 100 iterations is applied before the cosine
+  #       learning rate schedule."
+  WARMUP_ITERS: 100
+  WARMUP_METHOD: 'linear'
+  LARGE_FC_LR: False
+  WEIGHT_DECAY: 1e-4
+  WEIGHT_DECAY_BIAS: 1e-4
+  CHECKPOINT_PERIOD: 60
+  LOG_PERIOD: 50
+  EVAL_PERIOD: 10
+  # Plain CE + triplet, no ProCA/GPD: that is what "baseline" means in table 4.
+  LOSS_TYPE: "base"
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 1024
+  RE_RANKING: False
+  WEIGHT: 'transformer_60.pth'
+  NECK_FEAT: 'before'
+  FEAT_NORM: 'yes'
+
+OUTPUT_DIR: './logs/whu_recipe_clip'

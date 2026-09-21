@@ -1,0 +1,106 @@
+# baseline 跑 90 轮 —— 所有增量的分母，预算也得查
+#
+#   bash run_hihr.sh whu_recipe_clip_e90
+#
+# Derived from hihr_whu_recipe_clip.yml.  MAX_EPOCHS is the change; the other
+# two keys follow from it.
+#
+# WHY THE BASELINE AND NOT JUST THE METHOD.  Every number this project reports
+# -- +1.30 for the delta, +0.92 for the text loss, +1.34 for the grouping -- is
+# an increment over whu_recipe_clip's 11.99.  If that 11.99 is understated at
+# 60 epochs then every one of those is overstated, and a reviewer asking "did
+# you tune the budget for your method but not the baseline?" would have a
+# point.  This closes it from the other end.
+#
+# THE TRAJECTORIES THAT MADE THIS WORTH ASKING (mAP at epoch 10..60):
+#
+#     recipe_clip    7.47  10.04  10.99  11.64  11.87  11.99    last step +0.12
+#     text_lam50     8.97  11.14  13.03  13.60  13.96  14.11               +0.15
+#     mtext_lam50    8.92  11.40  13.05  13.52  14.11  14.21               +0.10
+#     ce_mod_g2      7.79  10.75  12.09  12.82  13.06  13.33               +0.27
+#
+# The steepest tail belongs to ce_mod_g2_clip, and ITS 90-epoch run gained
+# +0.08 -- inside the +-0.2 band.  So the flatter three should gain less, and
+# the honest expectation for this run is "nothing".  It is run anyway because
+# every number this project reports is an increment over a baseline, and
+# "we checked the epoch budget on one arm" is a weaker sentence than "we
+# checked it at both ends of the method spectrum".
+#
+# Raising MAX_EPOCHS is not "carrying on for longer": the schedule is cosine
+# and MAX_EPOCHS is its period, so the whole learning-rate curve is redrawn.
+# Only the final numbers compare.
+#
+MODEL:
+  PRETRAIN_CHOICE: 'imagenet'
+  # [VARIABLE] the deliberate change: the raw OpenAI release rather than
+  # our CARGO checkpoint.  run_hihr.sh points this at $DATA/ViT-B-16.pt,
+  # the same file hihr_cargo_base.yml itself starts from.
+  PRETRAIN_PATH: 'ViT-B-16.pt'
+  # 4.2: "We adopt the CLIP-ViT-B/16 as the visual and text encoder."
+  TRANSFORMER_TYPE: 'vit_base_clip'
+  # [RECIPE] HiHR section 4.4: "cross-entropy loss and triplet loss".
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'off'
+  IF_WITH_CENTER: 'no'
+  NAME: 'transformer'
+  NO_MARGIN: True
+  DEVICE_ID: ('0')
+  STRIDE_SIZE: [16, 16]
+
+INPUT:
+  # 4.2: "images are resized to 256 x 128 x 3"
+  SIZE_TRAIN: [256, 128]
+  SIZE_TEST: [256, 128]
+  # 4.2: "random horizontal flipping, random cropping and random erasing"
+  PROB: 0.5
+  RE_PROB: 0.5
+  PADDING: 10
+  # CLIP's own normalisation -- the tower was fitted to these statistics.
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]
+
+DATASETS:
+  NAMES: ('WHU-MARS')
+  ROOT_DIR: ('/data')
+  MODALITIES: ['RGB', 'IR', 'Thermal']
+
+DATALOADER:
+  SAMPLER: 'PKM'
+  # 4.2: "with 4 images sampled per identity"
+  NUM_INSTANCE: 4
+  NUM_WORKERS: 8
+
+SOLVER:
+  # 4.2: "using Adam"
+  OPTIMIZER_NAME: 'Adam'
+  # 4.2: "We train for 60 epochs"
+  MAX_EPOCHS: 90
+  # 4.2: "3.5e-4 for randomly initialized modules and 5e-6 for pre-trained
+  #       components"  -- BASE_LR is the head, PRETRAINED_LR the CLIP tower.
+  BASE_LR: 0.00035
+  PRETRAINED_LR: 0.000005
+  BIAS_LR_FACTOR: 1
+  # 4.2: "a batch size of 64"
+  IMS_PER_BATCH: 64
+  # 4.2: "A warm-up strategy with 100 iterations is applied before the cosine
+  #       learning rate schedule."
+  WARMUP_ITERS: 100
+  WARMUP_METHOD: 'linear'
+  LARGE_FC_LR: False
+  WEIGHT_DECAY: 1e-4
+  WEIGHT_DECAY_BIAS: 1e-4
+  CHECKPOINT_PERIOD: 90
+  LOG_PERIOD: 50
+  EVAL_PERIOD: 10
+  # Plain CE + triplet, no ProCA/GPD: that is what "baseline" means in table 4.
+  LOSS_TYPE: "base"
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 1024
+  RE_RANKING: False
+  WEIGHT: 'transformer_90.pth'
+  NECK_FEAT: 'before'
+  FEAT_NORM: 'yes'
+
+OUTPUT_DIR: './logs/whu_recipe_clip_e90'
