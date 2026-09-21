@@ -92,8 +92,9 @@ def make_loss(cfg, num_classes):    # modified by gu
         xent = CrossEntropyLabelSmooth(num_classes=num_classes * ce_slot_count(cfg))
         print("label smooth on, numclasses:", num_classes * ce_slot_count(cfg))
 
-    if sampler.upper() != 'PKM':
-        raise ValueError('expected PKM sampler, but got {}'.format(sampler))
+    sampler_name = sampler.upper()
+    if sampler_name not in ('PKM', 'PKM_VIEW'):
+        raise ValueError('expected PKM or PKM_VIEW sampler, but got {}'.format(sampler))
 
     def loss_func(score, feat, target, target_ce=None):
         # `target_ce` is the split label; the triplet always keeps the raw pid,
