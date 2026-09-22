@@ -1,0 +1,88 @@
+# D: exact repeat of A under the current project and environment.
+# The only differences from A are the experiment name/output directory and the
+# explicit record of the already-used cudnn.benchmark=False setting.
+
+MODEL:
+  PRETRAIN_CHOICE: 'imagenet'
+  PRETRAIN_PATH: 'ViT-B-16.pt'
+  TRANSFORMER_TYPE: 'vit_base_clip'
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'off'
+  IF_WITH_CENTER: 'no'
+  NAME: 'transformer'
+  NO_MARGIN: True
+  DEVICE_ID: ('0')
+  DIST_TRAIN: False
+  STRIDE_SIZE: [16, 16]
+  CE_SPLIT_VIEW: False
+  CE_SPLIT_MODALITY: False
+  CE_MODALITY_GROUPS: []
+  MOD_DELTA: False
+  TEXT_ALIGN: False
+  PCA_LOSS_WEIGHT: 0.0
+
+INPUT:
+  SIZE_TRAIN: [256, 128]
+  SIZE_TEST: [256, 128]
+  PROB: 0.5
+  RE_PROB: 0.5
+  PADDING: 10
+  PIXEL_MEAN: [0.48145466, 0.4578275, 0.40821073]
+  PIXEL_STD: [0.26862954, 0.26130258, 0.27577711]
+
+DATASETS:
+  NAMES: ('WHU-MARS')
+  ROOT_DIR: ('/data')
+  MODALITIES: ['RGB', 'IR', 'Thermal']
+  PROTOCOL: 'ALL'
+
+DATALOADER:
+  SAMPLER: 'PKM'
+  NUM_INSTANCE: 4
+  NUM_WORKERS: 8
+  SYNC_FRAMES: False
+  TIE_AUGMENTATION: False
+  TIE_ERASING: True
+  PKM_VIEW:
+    NUM_CROSS_VIEW_PIDS: 8
+    NUM_GROUND_ONLY_PIDS: 8
+    AERIAL_CAM_IDS: [5, 6]
+
+SOLVER:
+  OPTIMIZER_NAME: 'Adam'
+  MAX_EPOCHS: 60
+  BASE_LR: 0.00035
+  PRETRAINED_LR: 0.000005
+  BIAS_LR_FACTOR: 1
+  IMS_PER_BATCH: 64
+  WARMUP_ITERS: 100
+  WARMUP_METHOD: 'linear'
+  WARMUP_LR_FACTOR: 0.01
+  LR_MIN_FACTOR: 0.002
+  LARGE_FC_LR: False
+  WEIGHT_DECAY: 1e-4
+  WEIGHT_DECAY_BIAS: 1e-4
+  CHECKPOINT_PERIOD: 60
+  LOG_PERIOD: 50
+  EVAL_PERIOD: 10
+  LOSS_TYPE: 'base'
+  SEED: 1234
+  CUDNN_BENCHMARK: False
+  TEXT_LOSS_WEIGHT: 0.0
+  TWIN_LOSS_WEIGHT: 0.0
+  TNCE_WEIGHT: 0.0
+  MOD_DELTA_ONLY: False
+  PLD_ONLY: False
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 1024
+  RE_RANKING: False
+  WEIGHT: 'transformer_60.pth'
+  NECK_FEAT: 'before'
+  FEAT_NORM: 'yes'
+  METRIC: 'sysu'
+  TOP_K_EVAL: 0
+  MOD_DELTA: False
+
+OUTPUT_DIR: './outputs/D_A_repeat_benchmark_false'

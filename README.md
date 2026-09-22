@@ -43,3 +43,24 @@ bash /mnt/cache/wanghanzhi/XK/WHU-Baseline/server/preflight_a800.sh
 `transformer_60.pth` 复评。
 
 详细设置和证据边界见 `doc/0.三组baseline候选实验与服务器启动手册_0922.md`。
+
+## cuDNN benchmark 最小对照
+
+为解释 A 与老师历史运行的差异，增加两项只控制
+`SOLVER.CUDNN_BENCHMARK` 的单卡实验：
+
+| 任务 | 配置 | seed | cuDNN benchmark | 作用 |
+|---|---|---:|---:|---|
+| `D_A_repeat_benchmark_false` | `configs/D_A_repeat_benchmark_false.yml` | 1234 | False | 原 A 同设置重复 |
+| `E_A_benchmark_true` | `configs/E_A_benchmark_true.yml` | 1234 | True | 对齐老师 `train.py` |
+
+服务器按以下顺序串行运行：
+
+```text
+1. server/run_D_A_repeat_benchmark_false_a800.sh
+2. server/run_E_A_benchmark_true_a800.sh
+```
+
+两组均从同一 raw CLIP 权重重新初始化，写入独立输出目录，并在训练完成后
+从磁盘加载 epoch-60 checkpoint 进行统一复评。详细判读规则见
+`doc/3.cuDNN_benchmark最小对照实验_0922.md`。

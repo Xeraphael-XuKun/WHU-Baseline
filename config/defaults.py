@@ -646,6 +646,9 @@ _C.SOLVER.WARMUP_LR_FACTOR = 0.01
 _C.SOLVER.BIAS_LR_FACTOR = 1
 # Factor of learning bias
 _C.SOLVER.SEED = 1234
+# cuDNN convolution autotuner. False is the reproducible A baseline setting;
+# True reproduces the teacher train.py setting for the matched control.
+_C.SOLVER.CUDNN_BENCHMARK = False
 # Momentum
 _C.SOLVER.MOMENTUM = 0.9
 # Margin of triplet loss

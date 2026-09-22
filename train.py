@@ -23,14 +23,14 @@ def setup_cuda_visible_devices(config):
         os.environ['CUDA_VISIBLE_DEVICES'] = config.MODEL.DEVICE_ID
 
 
-def set_seed(seed):
+def set_seed(seed, cudnn_benchmark=False):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = bool(cudnn_benchmark)
 
 
 if __name__ == '__main__':
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     setup_cuda_visible_devices(cfg)
     local_rank = int(os.environ.get('LOCAL_RANK',
                                     args.local_rank if args.local_rank >= 0 else 0))
-    set_seed(cfg.SOLVER.SEED)
+    set_seed(cfg.SOLVER.SEED, cfg.SOLVER.CUDNN_BENCHMARK)
 
     if cfg.MODEL.DIST_TRAIN:
         torch.cuda.set_device(local_rank)
