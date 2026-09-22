@@ -61,6 +61,7 @@ bash /mnt/cache/wanghanzhi/XK/WHU-Baseline/server/preflight_a800.sh
 2. server/run_E_A_benchmark_true_a800.sh
 ```
 
-两组均从同一 raw CLIP 权重重新初始化，写入独立输出目录，并在训练完成后
-从磁盘加载 epoch-60 checkpoint 进行统一复评。详细判读规则见
+两组均保留 60-epoch scheduler 地平线、实际训练 20 epochs，从同一 raw
+CLIP 权重重新初始化，写入独立输出目录，并从磁盘加载 epoch-20 checkpoint
+进行统一复评。详细判读规则见
 `doc/3.cuDNN_benchmark最小对照实验_0922.md`。

@@ -23,10 +23,10 @@ mkdir -p "$OUTPUT"
   DATASETS.ROOT_DIR "$DATA_ROOT" \
   OUTPUT_DIR "$OUTPUT" 2>&1 | tee "$OUTPUT/train_stdout.log"
 
-test -s "$OUTPUT/transformer_60.pth"
-mkdir -p "$OUTPUT/eval_epoch60"
+test -s "$OUTPUT/transformer_20.pth"
+mkdir -p "$OUTPUT/eval_epoch20"
 "$PYTHON" test.py --config_file "$CONFIG" \
   MODEL.PRETRAIN_PATH "$PRETRAIN" \
   DATASETS.ROOT_DIR "$DATA_ROOT" \
-  TEST.WEIGHT "$OUTPUT/transformer_60.pth" \
-  OUTPUT_DIR "$OUTPUT/eval_epoch60" 2>&1 | tee "$OUTPUT/eval_epoch60/eval_stdout.log"
+  TEST.WEIGHT "$OUTPUT/transformer_20.pth" \
+  OUTPUT_DIR "$OUTPUT/eval_epoch20" 2>&1 | tee "$OUTPUT/eval_epoch20/eval_stdout.log"

@@ -444,11 +444,21 @@ def do_train(cfg,
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
 
-    device = 'cuda'
-    epochs = cfg.SOLVER.MAX_EPOCHS
-
     logger = logging.getLogger('transreid.train')
+    device = 'cuda'
+    schedule_epochs = int(cfg.SOLVER.MAX_EPOCHS)
+    stop_after_epoch = int(cfg.SOLVER.STOP_AFTER_EPOCH)
+    if stop_after_epoch < 0 or stop_after_epoch > schedule_epochs:
+        raise ValueError(
+            'SOLVER.STOP_AFTER_EPOCH must be 0 or in [1, MAX_EPOCHS], got {} '
+            'with MAX_EPOCHS={}'.format(stop_after_epoch, schedule_epochs))
+    epochs = stop_after_epoch or schedule_epochs
+
     logger.info('start training')
+    if stop_after_epoch:
+        logger.info(
+            'Diagnostic stop: train through epoch %d while keeping the '
+            '%d-epoch scheduler horizon', epochs, schedule_epochs)
     if device:
         model.to(local_rank)
         if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:

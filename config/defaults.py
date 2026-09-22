@@ -501,6 +501,9 @@ _C.SOLVER = CN()
 _C.SOLVER.OPTIMIZER_NAME = "Adam"
 # Number of max epoches
 _C.SOLVER.MAX_EPOCHS = 100
+# Optional diagnostic stop that leaves MAX_EPOCHS unchanged for scheduler
+# construction. 0 means train for the full MAX_EPOCHS horizon.
+_C.SOLVER.STOP_AFTER_EPOCH = 0
 # Base learning rate
 _C.SOLVER.BASE_LR = 3e-4
 # Whether using larger learning rate for fc layer
