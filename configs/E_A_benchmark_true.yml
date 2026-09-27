@@ -1,5 +1,5 @@
-# E: matched A control for the teacher train.py cuDNN setting.
-# This differs from D only in CUDNN_BENCHMARK and OUTPUT_DIR.
+# E10: whu_mars control for the teacher train.py cuDNN benchmark flag.
+# This differs from D10 only in CUDNN_BENCHMARK and OUTPUT_DIR.
 
 MODEL:
   PRETRAIN_CHOICE: 'imagenet'
@@ -50,7 +50,7 @@ DATALOADER:
 SOLVER:
   OPTIMIZER_NAME: 'Adam'
   MAX_EPOCHS: 60
-  STOP_AFTER_EPOCH: 20
+  STOP_AFTER_EPOCH: 10
   BASE_LR: 0.00035
   PRETRAINED_LR: 0.000005
   BIAS_LR_FACTOR: 1
@@ -62,7 +62,7 @@ SOLVER:
   LARGE_FC_LR: False
   WEIGHT_DECAY: 1e-4
   WEIGHT_DECAY_BIAS: 1e-4
-  CHECKPOINT_PERIOD: 20
+  CHECKPOINT_PERIOD: 10
   LOG_PERIOD: 50
   EVAL_PERIOD: 10
   LOSS_TYPE: 'base'
@@ -78,11 +78,11 @@ TEST:
   EVAL: True
   IMS_PER_BATCH: 1024
   RE_RANKING: False
-  WEIGHT: 'transformer_20.pth'
+  WEIGHT: 'transformer_10.pth'
   NECK_FEAT: 'before'
   FEAT_NORM: 'yes'
   METRIC: 'sysu'
   TOP_K_EVAL: 0
   MOD_DELTA: False
 
-OUTPUT_DIR: './outputs/E_A_benchmark_true'
+OUTPUT_DIR: './outputs/E10_whu_benchmark_true'

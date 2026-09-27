@@ -44,24 +44,29 @@ bash /mnt/cache/wanghanzhi/XK/WHU-Baseline/server/preflight_a800.sh
 
 详细设置和证据边界见 `doc/0.三组baseline候选实验与服务器启动手册_0922.md`。
 
-## cuDNN benchmark 最小对照
+## A 与老师历史运行差异的 10 轮诊断
 
-为解释 A 与老师历史运行的差异，增加两项只控制
-`SOLVER.CUDNN_BENCHMARK` 的单卡实验：
+这部分代码只存在于 `diagnostic/env-cudnn-e10` 诊断分支，不属于正式
+baseline。三组均使用同一单卡 A800、`SEED=1234` 和同一 A 配方，保留
+60-epoch scheduler 地平线，但在 epoch 10 诊断停止：
 
-| 任务 | 配置 | seed | cuDNN benchmark | 作用 |
-|---|---|---:|---:|---|
-| `D_A_repeat_benchmark_false` | `configs/D_A_repeat_benchmark_false.yml` | 1234 | False | 原 A 同设置重复 |
-| `E_A_benchmark_true` | `configs/E_A_benchmark_true.yml` | 1234 | True | 对齐老师 `train.py` |
+| 任务 | Python 环境 | cuDNN benchmark | 主要问题 |
+|---|---|---:|---|
+| D10 | `whu_mars` | False | 当前 A 设置在相同环境下能否短程重复 |
+| E10 | `whu_mars` | True | 只改变 benchmark 后轨迹是否移动 |
+| F10 | `llmpar` | True | 在 E10 基础上再改变历史环境候选 |
 
-服务器按以下顺序串行运行：
+先执行双环境预检，再在平台创建三个独立单卡任务并按 D10、E10、F10
+串行调度：
 
 ```text
-1. server/run_D_A_repeat_benchmark_false_a800.sh
-2. server/run_E_A_benchmark_true_a800.sh
+server/preflight_diagnostic_e10_a800.sh
+server/run_D_A_repeat_benchmark_false_a800.sh
+server/run_E_A_benchmark_true_a800.sh
+server/run_F_teacher_env_benchmark_true_a800.sh
 ```
 
-两组均保留 60-epoch scheduler 地平线、实际训练 20 epochs，从同一 raw
-CLIP 权重重新初始化，写入独立输出目录，并从磁盘加载 epoch-20 checkpoint
-进行统一复评。详细判读规则见
-`doc/3.cuDNN_benchmark最小对照实验_0922.md`。
+三组分别写入 `WHU-Baseline_runs/diagnostic_e10/` 下的独立目录，并从磁盘
+加载 `transformer_10.pth` 统一复评。10 轮只用于定位早期轨迹差异，不能替代
+完整 60 轮、固定 epoch-60 checkpoint 的正式性能比较。详细设置、判读规则和
+代码治理见 `doc/3.cuDNN_benchmark最小对照实验_0922.md`。

@@ -4,12 +4,12 @@ set -euo pipefail
 export CUDA_VISIBLE_DEVICES=0
 export WORLD_SIZE=1
 
-CODE_DIR=/mnt/cache/wanghanzhi/XK/WHU-Baseline
+CODE_DIR=/mnt/cache/wanghanzhi/XK/WHU-Baseline-diagnostic
 PYTHON=/mnt/cache/wanghanzhi/envs/whu_mars/bin/python3
-CONFIG=/mnt/cache/wanghanzhi/XK/WHU-Baseline/configs/E_A_benchmark_true.yml
+CONFIG=/mnt/cache/wanghanzhi/XK/WHU-Baseline-diagnostic/configs/E_A_benchmark_true.yml
 DATA_ROOT=/mnt/cache/wanghanzhi/Datasets
 PRETRAIN=/mnt/cache/wanghanzhi/Datasets/ViT-B-16.pt
-OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/E_A_benchmark_true
+OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/diagnostic_e10/E10_whu_benchmark_true
 
 cd "$CODE_DIR"
 if [ -d "$OUTPUT" ] && [ -n "$(find "$OUTPUT" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
@@ -23,10 +23,10 @@ mkdir -p "$OUTPUT"
   DATASETS.ROOT_DIR "$DATA_ROOT" \
   OUTPUT_DIR "$OUTPUT" 2>&1 | tee "$OUTPUT/train_stdout.log"
 
-test -s "$OUTPUT/transformer_20.pth"
-mkdir -p "$OUTPUT/eval_epoch20"
+test -s "$OUTPUT/transformer_10.pth"
+mkdir -p "$OUTPUT/eval_epoch10"
 "$PYTHON" test.py --config_file "$CONFIG" \
   MODEL.PRETRAIN_PATH "$PRETRAIN" \
   DATASETS.ROOT_DIR "$DATA_ROOT" \
-  TEST.WEIGHT "$OUTPUT/transformer_20.pth" \
-  OUTPUT_DIR "$OUTPUT/eval_epoch20" 2>&1 | tee "$OUTPUT/eval_epoch20/eval_stdout.log"
+  TEST.WEIGHT "$OUTPUT/transformer_10.pth" \
+  OUTPUT_DIR "$OUTPUT/eval_epoch10" 2>&1 | tee "$OUTPUT/eval_epoch10/eval_stdout.log"

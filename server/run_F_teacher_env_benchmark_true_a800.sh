@@ -5,11 +5,11 @@ export CUDA_VISIBLE_DEVICES=0
 export WORLD_SIZE=1
 
 CODE_DIR=/mnt/cache/wanghanzhi/XK/WHU-Baseline-diagnostic
-PYTHON=/mnt/cache/wanghanzhi/envs/whu_mars/bin/python3
-CONFIG=/mnt/cache/wanghanzhi/XK/WHU-Baseline-diagnostic/configs/D_A_repeat_benchmark_false.yml
+PYTHON=/mnt/cache/wanghanzhi/envs/llmpar/bin/python3
+CONFIG=/mnt/cache/wanghanzhi/XK/WHU-Baseline-diagnostic/configs/F_teacher_env_benchmark_true.yml
 DATA_ROOT=/mnt/cache/wanghanzhi/Datasets
 PRETRAIN=/mnt/cache/wanghanzhi/Datasets/ViT-B-16.pt
-OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/diagnostic_e10/D10_whu_benchmark_false
+OUTPUT=/mnt/cache/wanghanzhi/XK/WHU-Baseline_runs/diagnostic_e10/F10_llmpar_benchmark_true
 
 cd "$CODE_DIR"
 if [ -d "$OUTPUT" ] && [ -n "$(find "$OUTPUT" -mindepth 1 -maxdepth 1 -print -quit)" ]; then

@@ -1,6 +1,6 @@
-# D10: first-10-epoch A-like control in the whu_mars environment.
-# MAX_EPOCHS remains 60 so the scheduler matches A; STOP_AFTER_EPOCH performs
-# the diagnostic stop after the epoch-10 checkpoint and evaluation.
+# F10: teacher-like llmpar environment with the teacher cuDNN benchmark flag.
+# The YAML is intentionally identical to E10 except for OUTPUT_DIR; the Python
+# environment is selected only by the launcher.
 
 MODEL:
   PRETRAIN_CHOICE: 'imagenet'
@@ -68,7 +68,7 @@ SOLVER:
   EVAL_PERIOD: 10
   LOSS_TYPE: 'base'
   SEED: 1234
-  CUDNN_BENCHMARK: False
+  CUDNN_BENCHMARK: True
   TEXT_LOSS_WEIGHT: 0.0
   TWIN_LOSS_WEIGHT: 0.0
   TNCE_WEIGHT: 0.0
@@ -86,4 +86,4 @@ TEST:
   TOP_K_EVAL: 0
   MOD_DELTA: False
 
-OUTPUT_DIR: './outputs/D10_whu_benchmark_false'
+OUTPUT_DIR: './outputs/F10_llmpar_benchmark_true'
