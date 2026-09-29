@@ -48,6 +48,24 @@ class build_transformer(nn.Module):
         self.bottleneck = nn.BatchNorm1d(self.in_planes)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
+        self.full_enabled = cfg.MODEL.FULL.ENABLED
+        if self.full_enabled:
+            if self.base.trajectory is None or not cfg.DATASETS.AERIAL_CAMS:
+                raise ValueError('Full needs Trajectory and zero-based aerial camera IDs')
+            from .backbones.clip_text import CLIPTextEncoder, ViewPrompts
+            # Text initialization must not perturb the existing visual RNG stream.
+            # Forward DropPath is NOT replayed: retain the reference VTC semantics.
+            with torch.random.fork_rng(devices=[]):
+                clip_sd = torch.load(cfg.MODEL.FULL.TEXT_CLIP_PATH, map_location='cpu')
+                if isinstance(clip_sd, nn.Module):
+                    clip_sd = clip_sd.state_dict()
+                text = CLIPTextEncoder()
+                text.load_clip(clip_sd)
+                self.prompts = ViewPrompts(text, n_ctx=4)
+            self.register_buffer('logit_scale', clip_sd['logit_scale'].exp().float())
+            self.register_buffer('full_aerial_cams', torch.tensor(cfg.DATASETS.AERIAL_CAMS))
+            self.rgb_index = list(cfg.DATASETS.MODALITIES).index('RGB')
+            del clip_sd
         if cfg.MODEL.PRETRAIN_CHOICE == 'self':
             self.load_param(cfg.MODEL.PRETRAIN_PATH)
 
@@ -58,7 +76,20 @@ class build_transformer(nn.Module):
         global_feat = self.base(x, trajectory_gate=trajectory_gate)
         feat = self.bottleneck(global_feat)
         if mode == 0:
-            return self.classifier(feat), global_feat, feat
+            cls_score = self.classifier(feat)
+            if not self.full_enabled:
+                return cls_score, global_feat, feat
+            per_modality = x.shape[0] // len(camids)
+            start = self.rgb_index * per_modality
+            rows = slice(start, start + per_modality)
+            # RGB only, no detach, no RNG replay; the before pass bypasses BN.
+            feat_before = self.base(x[rows], trajectory_gate=0.0)
+            return cls_score, global_feat, feat, {
+                'feat_after': global_feat[rows], 'feat_before': feat_before,
+                'is_aerial': torch.isin(camids[self.rgb_index].to(x.device), self.full_aerial_cams),
+                'text': self.prompts(), 'logit_scale': self.logit_scale,
+                'proj': self.base.clip_proj,
+            }
         return feat if self.neck_feat == 'after' else global_feat
 
     def load_param(self, trained_path):
@@ -70,6 +101,14 @@ class build_transformer(nn.Module):
         if 'state_dict' in param_dict:
             param_dict = param_dict['state_dict']
         own = self.state_dict()
+        full_keys = {k for k in own if k.startswith('prompts.') or k in ('logit_scale', 'full_aerial_cams')}
+        saved_full = {k.replace('module.', '') for k in param_dict
+                      if k.replace('module.', '').startswith('prompts.')
+                      or k.replace('module.', '') in ('logit_scale', 'full_aerial_cams')}
+        if full_keys != saved_full:
+            raise RuntimeError('Full checkpoint/config mismatch: use the matching full or trajectory-only config')
+        if full_keys and not torch.equal(param_dict.get('full_aerial_cams', param_dict.get('module.full_aerial_cams')).cpu(), self.full_aerial_cams.cpu()):
+            raise RuntimeError('Full aerial camera mapping differs from checkpoint')
         trajectory_keys = {k for k in own if k.startswith('base.trajectory.')}
         checkpoint_trajectory = {k.replace('module.', '') for k in param_dict
                                  if k.replace('module.', '').startswith('base.trajectory.')}

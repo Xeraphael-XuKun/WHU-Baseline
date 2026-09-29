@@ -21,6 +21,8 @@ def main():
     cfg.merge_from_file(args.config)
     cfg.DATASETS.ROOT_DIR = args.data_root
     cfg.MODEL.PRETRAIN_PATH = args.pretrain
+    if cfg.MODEL.FULL.ENABLED:
+        cfg.MODEL.FULL.TEXT_CLIP_PATH = args.pretrain
     cfg.freeze()
     torch.manual_seed(cfg.SOLVER.SEED)
     loader, _, _, _, classes, cameras, views = make_dataloader(cfg)

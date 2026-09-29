@@ -6,6 +6,7 @@ import torch.nn as nn
 from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
+from loss.full import full_view_loss
 import torch.distributed as dist
 import torch.nn.functional as F
 
@@ -34,6 +35,7 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
     model_meta = model.module if hasattr(model, 'module') else model
     trajectory = model_meta.base.trajectory
     trajectory_skipped_steps = 0
+    full_meter = AverageMeter()
     feat_dim = getattr(model_meta, 'in_planes', 768)
     num_classes = getattr(model_meta, 'num_classes', 500)
     print(feat_dim, num_classes)
@@ -41,6 +43,7 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()
+        full_meter.reset()
         acc_meter.reset()
         for m in meter_ls:
             m.reset()
@@ -63,6 +66,10 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
                 out = model(imgs, target, camids)
                 (cls_score, global_feat, feat) = (out[0], out[1], out[2])
                 (loss, il, tl) = loss_fn(cls_score, global_feat, target_rep)
+                if cfg.MODEL.FULL.ENABLED:
+                    full_loss, full_stats = full_view_loss(out[3])
+                    loss = loss + cfg.MODEL.FULL.LOSS_WEIGHT * full_loss
+                    full_meter.update(full_loss.item(), out[3]['feat_after'].shape[0])
                 meter_ls[0].update(il.item(), target_rep.shape[0])
                 meter_ls[1].update(tl.item(), target_rep.shape[0])
             scaler.scale(loss).backward()
@@ -87,6 +94,15 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
                 metrics = [f'{m.avg:.3f}' for m in meter_ls]
                 metrics_str = ', '.join(metrics)
                 logger.info(f'Epoch[{epoch}] {metrics_str}')
+                if cfg.MODEL.FULL.ENABLED:
+                    logger.info('Full loss=%.6g weighted=%.6g n_aerial=%d/%d '
+                                'acc A_before=%.4f A_after=%.4f G_before=%.4f G_after=%.4f '
+                                'margin A=%.5f->%.5f G=%.5f->%.5f push=%.5f drift=%.5f',
+                                full_meter.avg, cfg.MODEL.FULL.LOSS_WEIGHT * full_meter.avg,
+                                full_stats['n_aerial'], full_stats['n_total'],
+                                *(full_stats['acc_' + k] for k in ('A_before','A_after','G_before','G_after')),
+                                *(full_stats['margin_' + k] for k in ('A_before','A_after','G_before','G_after')),
+                                full_stats['push'], full_stats['drift'])
                 if collect_trajectory:
                     values = trajectory.last_stats.mean(dim=0).cpu().tolist()
                     effective_gain = trajectory.effective_gain().detach()
@@ -97,6 +113,9 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
                                 effective_gain.abs().max().item(), trajectory_grad,
                                 next(g['lr'] for g in optimizer.param_groups
                                      if g['params'][0] is trajectory.gain), trajectory_skipped_steps)
+        if trajectory is not None:
+            logger.info('Epoch %d accounting: batches=%d amp_skipped_total=%d',
+                        epoch, n_iter + 1, trajectory_skipped_steps)
         end_time = time.time()
         time_per_batch = (end_time - start_time) / (n_iter + 1)
         if cfg.MODEL.DIST_TRAIN:
