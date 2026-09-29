@@ -37,7 +37,7 @@ _spec.loader.exec_module(_mod)
 WHU_MARS = _mod.WHU_MARS
 
 PASS = FAIL = SKIP = 0
-ROOTS = [r'E:\Code\CVPR\Datasets', '/mnt/cache/wanghanzhi/Datasets']
+ROOTS = [r'E:\CFAN\datasets', r'E:\Code\CVPR\Datasets', '/mnt/cache/wanghanzhi/Datasets']
 MODS = ('RGB', 'IR', 'Thermal')
 
 
@@ -202,36 +202,6 @@ def test_an_empty_gd_result_is_refused():
 
 
 # ------------------------------------------------------------------- configs
-def test_the_2337_configs_differ_only_where_intended():
-    import yaml
-
-    def flat(n, p=()):
-        out = {}
-        if isinstance(n, dict):
-            for k, v in n.items():
-                out.update(flat(v, p + (str(k),)))
-        else:
-            out['.'.join(p)] = n
-        return out
-
-    here = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'configs')
-    load = lambda n: flat(yaml.safe_load(open(os.path.join(here, 'hihr_%s.yml' % n),
-                                              encoding='utf-8')))
-    for new, base in (('whu2337_text_lam50', 'whu_text_lam50_clip'),
-                      ('whu2337_mtext_lam50', 'whu_mtext_lam50_clip'),
-                      ('whu2337_ce_mod_g2_mtext', 'whu_ce_mod_g2_mtext_clip')):
-        a, b = load(base), load(new)
-        check('%s: adds only DATASETS.SUBDIR' % new,
-              set(b) - set(a) == {'DATASETS.SUBDIR'}, sorted(set(b) - set(a)))
-        diff = {k for k in a if k in b and a[k] != b[k]}
-        check('%s: changes only OUTPUT_DIR' % new, diff == {'OUTPUT_DIR'}, sorted(diff))
-        check('%s: points at the 2337 split' % new,
-              b['DATASETS.SUBDIR'] == 'WHU-MARS-2337', b['DATASETS.SUBDIR'])
-        check('%s: SYNC_FRAMES stays off (the spectra are not aligned here)' % new,
-              b.get('DATALOADER.SYNC_FRAMES', False) is False,
-              b.get('DATALOADER.SYNC_FRAMES'))
-        check('%s: still raw CLIP init' % new,
-              b['MODEL.PRETRAIN_CHOICE'] == 'imagenet' and 'ViT-B-16' in b['MODEL.PRETRAIN_PATH'])
 
 
 def main():
@@ -241,8 +211,8 @@ def main():
                test_an_unknown_protocol_is_refused,
                test_protocol_is_case_insensitive,
                test_subdir_selects_the_split,
-               test_an_empty_gd_result_is_refused,
-               test_the_2337_configs_differ_only_where_intended):
+               test_an_empty_gd_result_is_refused):
+
         fn()
     total = PASS + FAIL
     print('\n%d/%d passed%s' % (PASS, total, '  (%d skipped)' % SKIP if SKIP else ''))

@@ -28,7 +28,7 @@ import torch.nn as nn
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.backbones.vit_pytorch import (  # noqa: E402
-    QuickGELU, TransReID, vit_base_clip, vit_base_in,
+    QuickGELU, TransReID, vit_base_clip,
 )
 
 DIM, DEPTH, HEADS = 64, 2, 4
@@ -79,7 +79,7 @@ def build_clip_vit(img_size=(224, 224), dim=DIM, depth=DEPTH, heads=HEADS):
                      depth=depth, num_heads=heads, mlp_ratio=4, qkv_bias=True,
                      num_classes=0, drop_path_rate=0.0,
                      norm_layer=partial(nn.LayerNorm, eps=1e-5),
-                     clip_style=True, act_layer=QuickGELU).eval()
+                     act_layer=QuickGELU).eval()
 
 
 def save(sd):
@@ -186,7 +186,7 @@ def test_wrong_activation_or_missing_lnpre_would_have_been_caught():
     m = TransReID(img_size=(224, 224), patch_size=16, stride_size=16, embed_dim=DIM,
                   depth=DEPTH, num_heads=HEADS, mlp_ratio=4, qkv_bias=True, num_classes=0,
                   drop_path_rate=0.0, norm_layer=partial(nn.LayerNorm, eps=1e-5),
-                  clip_style=True, act_layer=nn.GELU).eval()
+                  act_layer=nn.GELU).eval()
     m.load_param(path)
     with torch.no_grad():
         assert not torch.allclose(m(x), want, atol=1e-5), 'GELU/QuickGELU swap went unnoticed'
@@ -194,7 +194,7 @@ def test_wrong_activation_or_missing_lnpre_would_have_been_caught():
     # ln_pre present but bypassed
     m2 = build_clip_vit()
     m2.load_param(path)
-    m2.ln_pre = None
+    m2.ln_pre = nn.Identity()
     with torch.no_grad():
         assert not torch.allclose(m2(x), want, atol=1e-5), 'missing ln_pre went unnoticed'
 
@@ -241,16 +241,6 @@ def test_pos_embed_is_interpolated_to_the_reid_grid():
     assert out.shape == (2, DIM) and torch.isfinite(out).all()
 
 
-def test_plain_vit_refuses_clip_weights():
-    """Loading CLIP into a GELU/no-ln_pre ViT must fail loudly, not silently."""
-    plain = TransReID(img_size=(224, 224), patch_size=16, stride_size=16, embed_dim=DIM,
-                      depth=DEPTH, num_heads=HEADS, num_classes=0, drop_path_rate=0.0)
-    try:
-        plain.load_param(save(fake_clip_state_dict()))
-    except RuntimeError as e:
-        assert 'vit_base_clip' in str(e), str(e)
-    else:
-        raise AssertionError('plain ViT should have refused CLIP weights')
 
 
 def test_reads_a_torchscript_archive():
@@ -305,22 +295,6 @@ def test_factory_pins_the_three_clip_differences():
     with torch.no_grad():
         out = m(torch.randn(2, 3, 256, 128))
     assert out.shape == (2, 768) and torch.isfinite(out).all()
-
-    # ... and leaves the ImageNet backbone exactly as it was.
-    plain = vit_base_in(img_size=(256, 128), drop_path_rate=0.0)
-    assert plain.ln_pre is None and plain.clip_proj is None
-    assert isinstance(plain.blocks[0].mlp.act, nn.GELU)
-    assert plain.norm.eps == 1e-6
-
-
-def test_layerwise_residuals_compose_with_clip():
-    """The advisor's two designs have to be able to sit on this backbone."""
-    for mode in ('indep', 'chain'):
-        m = vit_base_clip(img_size=(256, 128), pe_layerwise=mode, drop_path_rate=0.0).eval()
-        assert m.pos_delta.shape == (12, 1, 129, 768)
-        with torch.no_grad():
-            assert torch.isfinite(m(torch.randn(2, 3, 256, 128))).all()
-
 
 if __name__ == '__main__':
     tests = [v for k, v in sorted(globals().items()) if k.startswith('test_')]

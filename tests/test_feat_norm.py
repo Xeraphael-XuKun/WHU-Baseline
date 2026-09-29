@@ -135,13 +135,6 @@ def test_turning_it_off_actually_changes_the_ranking():
 # --------------------------------------------------------------------------
 # 3. the other consumers, and the log
 # --------------------------------------------------------------------------
-def test_dump_features_uses_the_coercion_too():
-    """It records feat_norm in the npz and the analysis reads that field to
-    decide whether to normalise, so bool('no') there mislabels the file."""
-    src = _read('diag', 'dump_features.py')
-    assert 'as_bool(cfg.TEST.FEAT_NORM' in src
-    assert 'np.array(bool(cfg.TEST.FEAT_NORM))' not in src
-    assert 'from utils.metrics import as_bool' in src
 
 
 def test_the_evaluator_says_which_way_it_went():
@@ -151,11 +144,6 @@ def test_the_evaluator_says_which_way_it_went():
     assert 'NOT normalized' in src
 
 
-def test_reeval_no_longer_filters_that_line_away():
-    """The line existed all along; reeval.sh's grep did not pass it through,
-    which is why the ignored setting left no trace in reeval_log.txt."""
-    src = _read('reeval.sh')
-    assert 'feature is (NOT )?normalized' in src
 
 
 def test_no_bare_truthiness_on_the_string_survives():

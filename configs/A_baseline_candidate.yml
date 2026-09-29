@@ -1,4 +1,4 @@
-# A / T0: teacher-recipe reproduction candidate.
+# Frozen A baseline for Trajectory experiments.
 # Original PKM, P=16, K=4 logical samples per PID, M=3 modalities.
 # Logical batch 64 -> actual image batch 192.
 
@@ -14,12 +14,6 @@ MODEL:
   DEVICE_ID: ('0')
   DIST_TRAIN: False
   STRIDE_SIZE: [16, 16]
-  CE_SPLIT_VIEW: False
-  CE_SPLIT_MODALITY: False
-  CE_MODALITY_GROUPS: []
-  MOD_DELTA: False
-  TEXT_ALIGN: False
-  PCA_LOSS_WEIGHT: 0.0
 
 INPUT:
   SIZE_TRAIN: [256, 128]
@@ -43,10 +37,6 @@ DATALOADER:
   SYNC_FRAMES: False
   TIE_AUGMENTATION: False
   TIE_ERASING: True
-  PKM_VIEW:
-    NUM_CROSS_VIEW_PIDS: 8
-    NUM_GROUND_ONLY_PIDS: 8
-    AERIAL_CAM_IDS: [5, 6]
 
 SOLVER:
   OPTIMIZER_NAME: 'Adam'
@@ -67,11 +57,6 @@ SOLVER:
   EVAL_PERIOD: 10
   LOSS_TYPE: 'base'
   SEED: 1234
-  TEXT_LOSS_WEIGHT: 0.0
-  TWIN_LOSS_WEIGHT: 0.0
-  TNCE_WEIGHT: 0.0
-  MOD_DELTA_ONLY: False
-  PLD_ONLY: False
 
 TEST:
   EVAL: True
@@ -82,6 +67,5 @@ TEST:
   FEAT_NORM: 'yes'
   METRIC: 'sysu'
   TOP_K_EVAL: 0
-  MOD_DELTA: False
 
 OUTPUT_DIR: './outputs/A_baseline_candidate'

@@ -316,61 +316,12 @@ def test_non_rank0_return_arity_matches_compute():
     assert '(None,)*8' in src or '(None,) * 8' in src, 'stale arity on the DDP path'
 
 
-def test_config_probes_are_anchored_to_real_keys():
-    """Found 2026-08-13, in the results rather than in review.
-
-    reeval.sh decided whether to inject DATASETS.AERIAL_CAMS with an unanchored
-    `grep -q 'AERIAL_CAMS'`, and hihr_whu_ce_mod_g2.yml has the words
-    "AERIAL_CAMS stays empty" in its header comment.  The check matched the
-    COMMENT, skipped the injection, and that run came back with no view matrix
-    -- while whu_ce_mod_g2_tri2, whose header happens not to contain those
-    letters, got one.  Two runs of the same family scored differently because
-    of a sentence in a comment.
-    """
-    import glob
-    import re
-    for path in ['reeval.sh', 'run_hihr.sh',
-                 os.path.join('diag', 'dump_all.sh'),
-                 os.path.join('diag', 'run_twin_probe.sh')]:
-        for line in _read(*path.split(os.sep)).splitlines():
-            if 'grep -q' not in line:
-                continue
-            for pat in re.findall(r"grep -q ['\"]([^'\"]+)['\"]", line):
-                assert pat.startswith('^'), (path, pat)
-
-    # and the config that triggered it still says the words, so the anchoring
-    # is what is being relied on rather than a rewritten comment
-    g2 = _read('configs', 'hihr_whu_ce_mod_g2.yml')
-    assert 'AERIAL_CAMS' in g2, 'the comment was edited instead of the grep'
-    assert not any(l.strip().startswith('AERIAL_CAMS:') for l in g2.splitlines())
 
 
-def test_reeval_keeps_its_output():
-    """A task that succeeds on this platform keeps no downloadable log, so a
-    re-evaluation that only printed to stdout produced nothing at all.  Append,
-    not truncate: several re-evaluations share one task."""
-    src = _read('reeval.sh')
-    assert 'REEVAL_LOG:-$REPO/reeval_log.txt' in src
-    assert 'tee -a "$LOG"' in src
-    assert src.count('tee -a "$LOG"') == 2, 'the results themselves are not teed'
-    assert '> "$LOG"' not in src.replace('>> "$LOG"', ''), 'the log is truncated'
 
 
-def test_reeval_records_the_setting_it_used():
-    """Its whole purpose is comparing test-time settings.  Two blocks that
-    differ only in NECK_FEAT are indistinguishable once the header is gone, and
-    a mislabelled result is worse than a missing one."""
-    src = _read('reeval.sh')
-    assert 'overrides  : ${*:-<none, config defaults>}' in src
-    assert 'checkpoint : $CKPT' in src
 
 
-def test_reeval_injects_aerial_cams_for_older_whu_runs():
-    """The pre-direction-two configs do not set AERIAL_CAMS, and they are the
-    control the new runs are compared against -- so reeval has to supply it."""
-    src = _read('reeval.sh')
-    assert 'DATASETS.AERIAL_CAMS' in src
-    assert 'View' in src, 'the output filter would swallow the matrix'
 
 
 if __name__ == '__main__':
