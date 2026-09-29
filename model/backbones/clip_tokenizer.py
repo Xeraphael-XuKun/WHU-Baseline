@@ -13,7 +13,7 @@ Paired with bpe_simple_vocab_16e6.txt.gz in this directory
 48,894 merges -> 256 + 256 + 48894 + 2 = 49,408 tokens, which is exactly the
 row count of `token_embedding.weight` in ViT-B-16.pt).
 
-Needs ftfy and regex; both are present in the cluster environment.
+Needs ftfy and regex in the actual training interpreter.
 """
 
 import gzip

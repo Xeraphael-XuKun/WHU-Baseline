@@ -283,10 +283,10 @@ class ViewPrompts(nn.Module):
 
 def build_tokenizer():
     """The vendored CLIP tokenizer, with a readable error when ftfy is absent."""
-    try:
+    if __package__:
         from .clip_tokenizer import SimpleTokenizer
-    except ImportError:                                          # pragma: no cover
-        from clip_tokenizer import SimpleTokenizer               # direct-run fallback
+    else:  # direct-run fallback; do not hide missing tokenizer dependencies
+        from clip_tokenizer import SimpleTokenizer
     vocab = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          'bpe_simple_vocab_16e6.txt.gz')
     if not os.path.exists(vocab):

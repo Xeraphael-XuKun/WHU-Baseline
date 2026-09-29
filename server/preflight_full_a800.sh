@@ -8,6 +8,7 @@ PYTHON=/mnt/cache/wanghanzhi/envs/whu_mars/bin/python3
 PRETRAIN=/mnt/cache/wanghanzhi/Datasets/ViT-B-16.pt
 test -s "$PRETRAIN"
 test -d /mnt/cache/wanghanzhi/Datasets/WHU-MARS/train
+"$PYTHON" -c "import ftfy, regex; from model.backbones.clip_text import build_tokenizer; t=build_tokenizer(); print('TOKENIZER_OK',t.encode('aerial'),t.encode('ground'))"
 "$PYTHON" -m pip check
 "$PYTHON" tests/test_trajectory.py
 for NAME in A_trajectory_direct_full A_trajectory_full; do
