@@ -16,8 +16,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-root', required=True)
     parser.add_argument('--pretrain', required=True)
+    parser.add_argument('--config', default=str(Path(__file__).resolve().parents[1] / 'configs/A_baseline_candidate.yml'))
     args = parser.parse_args()
-    cfg.merge_from_file(str(Path(__file__).resolve().parents[1] / 'configs/A_baseline_candidate.yml'))
+    cfg.merge_from_file(args.config)
     cfg.DATASETS.ROOT_DIR = args.data_root
     cfg.MODEL.PRETRAIN_PATH = args.pretrain
     cfg.freeze()
@@ -27,7 +28,7 @@ def main():
     _, center = make_loss(cfg, classes)
     optimizer, _ = make_optimizer(cfg, model, center)
     create_scheduler(cfg, optimizer, len(loader))
-    print('A_BASELINE_PREFLIGHT_OK: model, loss, optimizer, scheduler and data constructed')
+    print('MODEL_BUILD_PREFLIGHT_OK: model, loss, optimizer, scheduler and data constructed; trajectory={}'.format(cfg.MODEL.TRAJECTORY.ENABLED))
     print('尚未开始正式训练；启动后需确认首个正常 iteration。')
 
 if __name__ == '__main__':

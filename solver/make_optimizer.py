@@ -8,7 +8,11 @@ def make_optimizer(cfg, model, center_criterion):
             continue
         lr = cfg.SOLVER.BASE_LR
         weight_decay = cfg.SOLVER.WEIGHT_DECAY
-        if cfg.SOLVER.PRETRAINED_LR > 0 and key.startswith('base.'):
+        if key.startswith('base.trajectory.'):
+            lr = cfg.SOLVER.TRAJECTORY_LR
+            print('Trajectory optimizer: {} shape={} lr={} weight_decay={}'.format(
+                key, tuple(value.shape), lr, weight_decay))
+        elif cfg.SOLVER.PRETRAINED_LR > 0 and key.startswith('base.'):
             lr = cfg.SOLVER.PRETRAINED_LR
         if "bias" in key:
             # Multiplies whatever lr the branch above chose.  Identical to the

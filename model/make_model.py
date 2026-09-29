@@ -34,7 +34,10 @@ class build_transformer(nn.Module):
         self.base = factory['vit_base_clip'](
             img_size=cfg.INPUT.SIZE_TRAIN, stride_size=cfg.MODEL.STRIDE_SIZE,
             drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate=cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE)
+            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+            trajectory_enabled=cfg.MODEL.TRAJECTORY.ENABLED,
+            acceleration_mix=cfg.MODEL.TRAJECTORY.ACCELERATION_MIX,
+            gain_bound=cfg.MODEL.TRAJECTORY.GAIN_BOUND)
         if cfg.MODEL.PRETRAIN_CHOICE == 'imagenet':
             self.base.load_param(cfg.MODEL.PRETRAIN_PATH)
         elif cfg.MODEL.PRETRAIN_CHOICE not in ('self', 'no'):
@@ -48,11 +51,11 @@ class build_transformer(nn.Module):
         if cfg.MODEL.PRETRAIN_CHOICE == 'self':
             self.load_param(cfg.MODEL.PRETRAIN_PATH)
 
-    def forward(self, x=None, label=None, camids=None, mode=0):
+    def forward(self, x=None, label=None, camids=None, mode=0, trajectory_gate=1.0):
         # Preserve modality-major concatenation and the public train/eval API.
         if mode == 0:
             x = torch.cat(list(x), dim=0)
-        global_feat = self.base(x)
+        global_feat = self.base(x, trajectory_gate=trajectory_gate)
         feat = self.bottleneck(global_feat)
         if mode == 0:
             return self.classifier(feat), global_feat, feat
@@ -67,6 +70,16 @@ class build_transformer(nn.Module):
         if 'state_dict' in param_dict:
             param_dict = param_dict['state_dict']
         own = self.state_dict()
+        trajectory_keys = {k for k in own if k.startswith('base.trajectory.')}
+        checkpoint_trajectory = {k.replace('module.', '') for k in param_dict
+                                 if k.replace('module.', '').startswith('base.trajectory.')}
+        if trajectory_keys != checkpoint_trajectory:
+            raise RuntimeError('Trajectory checkpoint/config mismatch: use the training config for evaluation. '
+                               'Fresh Trajectory training starts from CLIP PRETRAIN_CHOICE=imagenet.')
+        for k, v in param_dict.items():
+            if k.replace('module.', '') == 'base.trajectory.spec':
+                if not torch.equal(v.cpu(), own['base.trajectory.spec'].cpu()):
+                    raise RuntimeError('Trajectory beta/gain bound differs from checkpoint; use its training config.')
 
         loaded, skipped, unexpected, mismatched = 0, [], [], []
         for k, v in param_dict.items():

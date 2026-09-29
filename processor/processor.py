@@ -32,6 +32,8 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
     evaluator = R1_mAP_eval(max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING, top_k=cfg.TEST.TOP_K_EVAL, logger=logger, metric=cfg.TEST.METRIC, aerial_cams=cfg.DATASETS.AERIAL_CAMS)
     scaler = amp.GradScaler()
     model_meta = model.module if hasattr(model, 'module') else model
+    trajectory = model_meta.base.trajectory
+    trajectory_skipped_steps = 0
     feat_dim = getattr(model_meta, 'in_planes', 768)
     num_classes = getattr(model_meta, 'num_classes', 500)
     print(feat_dim, num_classes)
@@ -47,6 +49,8 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
         model.train()
         n_iter = 0
         for (n_iter, (imgs, vid, camids)) in enumerate(train_loader):
+            collect_trajectory = trajectory is not None and (n_iter + 1) % log_period == 0
+            model_meta.base.collect_trajectory_stats = collect_trajectory
             scheduler.step_update((epoch - 1) * len(train_loader) + n_iter)
             optimizer.zero_grad()
             optimizer_center.zero_grad()
@@ -63,9 +67,15 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
                 meter_ls[1].update(tl.item(), target_rep.shape[0])
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
+            if collect_trajectory:
+                trajectory_grad = trajectory.gain.grad.detach().float().norm().item()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            if trajectory is not None:
+                previous_scale = scaler.get_scale()
             scaler.step(optimizer)
             scaler.update()
+            if trajectory is not None:
+                trajectory_skipped_steps += int(scaler.get_scale() < previous_scale)
             acc = (cls_score.max(1)[1] == target_rep).float().mean()
             loss_meter.update(loss.item(), target.shape[0])
             acc_meter.update(acc, 1)
@@ -77,6 +87,16 @@ def do_train(cfg, model, center_criterion, train_loader, val_loaders, optimizer,
                 metrics = [f'{m.avg:.3f}' for m in meter_ls]
                 metrics_str = ', '.join(metrics)
                 logger.info(f'Epoch[{epoch}] {metrics_str}')
+                if collect_trajectory:
+                    values = trajectory.last_stats.mean(dim=0).cpu().tolist()
+                    effective_gain = trajectory.effective_gain().detach()
+                    logger.info('Trajectory velocity=%.6g acceleration=%.6g correction=%.6g '
+                                'correction/input=%.6g gain_abs=%.6g gain_max=%.6g '
+                                'grad_norm=%.6g lr=%.6g amp_skipped_total=%d',
+                                *values, effective_gain.abs().mean().item(),
+                                effective_gain.abs().max().item(), trajectory_grad,
+                                next(g['lr'] for g in optimizer.param_groups
+                                     if g['params'][0] is trajectory.gain), trajectory_skipped_steps)
         end_time = time.time()
         time_per_batch = (end_time - start_time) / (n_iter + 1)
         if cfg.MODEL.DIST_TRAIN:

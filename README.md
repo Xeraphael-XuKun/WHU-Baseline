@@ -1,7 +1,8 @@
 # WHU-Baseline：A → Trajectory
 
 本分支只保留已选定的 A baseline 主训练路径，下一步研究核心为 **A + Trajectory**。
-VTC 仅作为后续补充对照；本轮未实现 Trajectory，也未启用 VTC。
+已实现 Trajectory-v1：主方案采用零初始化有界 gain（0.1·tanh(g/0.1)），
+直接 gain 为补充对照。VTC 仅作为后续补充，本轮不启用。
 
 ## 冻结设置
 
@@ -18,6 +19,10 @@ Adam，主干 LR 5e-6 / 新参数 LR 3.5e-4，100 updates warmup + cosine，
 - 服务器预检：`server/preflight_a800.sh`
 - A 单卡前台训练及独立复评：`server/run_A_baseline_candidate_a800.sh`
 - 清理范围与验收：`doc/5.A基线清理与Trajectory开发边界_0929.md`
+- Trajectory 实现、实验设置和服务器命令：`doc/6.Trajectory实现与服务器实验手册_0929.md`
+- 主方案：`configs/A_trajectory.yml` / `server/run_A_trajectory_a800.sh`
+- 直接 gain 对照：`configs/A_trajectory_direct.yml` / `server/run_A_trajectory_direct_a800.sh`
+- 同设置 A 重跑：`server/run_A_trajectory_control_a800.sh`
 
 现有 A 输出目录非空时启动脚本会拒绝覆盖。新的重跑应使用独立输出目录。
 预检成功不等于正式训练已启动。

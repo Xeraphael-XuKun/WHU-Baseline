@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import collections.abc as container_abcs
+from .trajectory import TokenTrajectory
 
 
 
@@ -197,7 +198,8 @@ class TransReID(nn.Module):
                  in_chans=3, num_classes=1000, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.,
-                 norm_layer=nn.LayerNorm, hw_ratio=1, act_layer=QuickGELU):
+                 norm_layer=nn.LayerNorm, hw_ratio=1, act_layer=QuickGELU,
+                 trajectory_enabled=False, acceleration_mix=1.0, gain_bound=0.1):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim
@@ -225,8 +227,12 @@ class TransReID(nn.Module):
         trunc_normal_(self.cls_token, std=.02)
         trunc_normal_(self.pos_embed, std=.02)
         self.apply(self._init_weights)
+        # Create after the baseline initialization; zeros consume no random draws.
+        self.trajectory = (TokenTrajectory(depth, num_patches + 1, embed_dim,
+                                          acceleration_mix, gain_bound) if trajectory_enabled else None)
+        self.collect_trajectory_stats = False
 
-    def forward_features(self, x):
+    def forward_features(self, x, trajectory_gate=1.0):
         B = x.shape[0]
         x = self.patch_embed(x)
         cls_tokens = self.cls_token.expand(B, -1, -1)
@@ -234,13 +240,17 @@ class TransReID(nn.Module):
         x = x + self.pos_embed
         x = self.pos_drop(x)
         x = self.ln_pre(x)
-        for blk in self.blocks:
-            x = blk(x)
+        if self.trajectory is None or trajectory_gate == 0:
+            for blk in self.blocks:
+                x = blk(x)
+        else:
+            x = self.trajectory(x, self.blocks, trajectory_gate,
+                                self.collect_trajectory_stats)
         x = self.norm(x)
         return x[:, 0]
 
-    def forward(self, x):
-        return self.forward_features(x)
+    def forward(self, x, trajectory_gate=1.0):
+        return self.forward_features(x, trajectory_gate)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -354,13 +364,16 @@ def resize_pos_embed(posemb, posemb_new, hight, width, hw_ratio=1):
     return posemb
 
 def vit_base_clip(img_size=(256, 128), stride_size=16, drop_rate=0.0,
-                  attn_drop_rate=0.0, drop_path_rate=0.1):
+                  attn_drop_rate=0.0, drop_path_rate=0.1,
+                  trajectory_enabled=False, acceleration_mix=1.0, gain_bound=0.1):
     return TransReID(img_size=img_size, patch_size=16, stride_size=stride_size,
                     embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
                     qkv_bias=True, drop_path_rate=drop_path_rate,
                     drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
                     norm_layer=partial(nn.LayerNorm, eps=1e-5),
-                    hw_ratio=1, act_layer=QuickGELU)
+                    hw_ratio=1, act_layer=QuickGELU,
+                    trajectory_enabled=trajectory_enabled, acceleration_mix=acceleration_mix,
+                    gain_bound=gain_bound)
 
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
